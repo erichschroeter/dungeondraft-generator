@@ -3,7 +3,24 @@ use config::{Config, Environment, File};
 use directories::UserDirs;
 use log::{debug, error, info, trace, warn, LevelFilter};
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{path::{PathBuf, Path}, io};
+
+fn create_backup(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    let backup_path = get_backup_path(path);
+
+    if backup_path.exists() {
+        return Ok(false); // Backup already exists
+    }
+
+    std::fs::copy(path, &backup_path)?;
+    Ok(true)
+}
+
+fn get_backup_path(origional_path: &Path) -> PathBuf {
+    let mut backup_path = origional_path.to_path_buf();
+    backup_path.set_extension("dungeondraft_map.bak");
+    backup_path
+}
 
 #[derive(Debug, Deserialize)]
 struct Settings {
@@ -52,16 +69,10 @@ fn setup_logging(verbose: &str) {
         .init();
 }
 
-fn main() {
-    const ABOUT: &str = "An example CLI program using the following crates:
-
-  - clap
-  - config
-  - env_logger
-  - directories
-  - serde";
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    const ABOUT: &str = "A program to generate DungeonDraft maps.";
     let matches = clap::Command::new("fixme")
-        .version("v1.0.0")
+        .version("v0.1.0")
         .author("Erich Schroeter <erich.schroeter@gmail.com>")
         .about(ABOUT)
         .long_about(format!(
@@ -96,6 +107,12 @@ Argument values are processed in the following order, using the last processed v
                 ))
                 .long_help("Choices: [error, warn, info, debug, trace]"),
         )
+        .arg(
+            Arg::new("mapfile")
+                .value_name("FILE")
+                .help("A .dungeondraft_map file")
+                .value_parser(value_parser!(PathBuf))
+        )
         .get_matches();
 
     let settings = Config::builder()
@@ -123,4 +140,20 @@ Argument values are processed in the following order, using the last processed v
     info!("{}", settings);
     debug!("testing");
     trace!("testing");
+
+    if let Some(o) = matches.get_one::<PathBuf>("mapfile") {
+        debug!("Reading {}", o.display());
+        let file = std::fs::File::open(o)?;
+        let reader = io::BufReader::new(file);
+        let data: serde_json::Value = serde_json::from_reader(reader)?;
+        create_backup(o).unwrap();
+        debug!("{:?}", data);
+    }
+    // DONE read .dungeondraft_map file
+    // TODO read .png/.jpg/etc file
+    // TODO insert/update/add attributes
+    // DONE write .dungeondraft_map.bak if not already exist
+    // TODO write .dungeondraft_map
+
+    Ok(())
 }
