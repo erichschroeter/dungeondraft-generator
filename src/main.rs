@@ -187,6 +187,17 @@ Argument values are processed in the following order, using the last processed v
                 .long_help("Choices: [error, warn, info, debug, trace]"),
         )
         .subcommand(
+            clap::Command::new("info")
+            .about("Show DungeonDraft map file info")
+            .arg(
+                Arg::new("mapfile")
+                    .required(true)
+                    .value_name("FILE")
+                    .help("A .dungeondraft_map file")
+                    .value_parser(value_parser!(PathBuf))
+            )
+        )
+        .subcommand(
             clap::Command::new("generate")
             .about("Generate a DungeonDraft map file from an image")
             .arg(
@@ -200,6 +211,8 @@ Argument values are processed in the following order, using the last processed v
             )
             .arg(
                 Arg::new("mapfile")
+                    .short('o')
+                    .long("output")
                     .value_name("FILE")
                     .help("A .dungeondraft_map file")
                     .value_parser(value_parser!(PathBuf))
@@ -249,15 +262,17 @@ Argument values are processed in the following order, using the last processed v
                 let _ = find_shapes(&o);
             }
         }
-        Some(("generate", sub_matches)) => {
+        Some(("info", sub_matches)) => {
             if let Some(o) = sub_matches.get_one::<PathBuf>("mapfile") {
                 debug!("Reading {}", o.display());
                 let file = std::fs::File::open(o)?;
                 let reader = io::BufReader::new(file);
                 let data: serde_json::Value = serde_json::from_reader(reader)?;
-                create_backup(o).unwrap();
                 debug!("{:?}", data);
             }
+        }
+        Some(("generate", _sub_matches)) => {
+                // create_backup(o).unwrap();
         }
         _ => {}
     }
