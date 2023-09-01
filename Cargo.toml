@@ -11,5 +11,6 @@ config = "0.13.3"
 directories = "5.0.1"
 env_logger = "0.10.0"
 log = "0.4.20"
+opencv = "0.80.0"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.105"
