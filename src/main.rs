@@ -3,12 +3,12 @@ use config::{Config, Environment, File};
 use directories::UserDirs;
 use log::{debug, error, info, trace, warn, LevelFilter};
 use opencv::prelude::*;
-use opencv::imgcodecs::imread;
+use opencv::imgcodecs::{imread, imwrite};
 use opencv::imgproc;
-use opencv::core;
+use opencv::core::{self, Scalar};
 use opencv::types::VectorOfMat;
 use serde::Deserialize;
-use std::{path::{PathBuf, Path}, io};
+use std::path::{PathBuf, Path};
 
 fn create_backup(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     let backup_path = get_backup_path(path);
@@ -187,20 +187,49 @@ Argument values are processed in the following order, using the last processed v
             core::Point::new(0, 0),
         )?;
 
+        // Create a new image to draw contours on
+        let mut image_with_contours = Mat::default();
+        image.copy_to(&mut image_with_contours)?;
+
         // Iterate over detected contours and print their coords and dimensions
+        info!("Detected {} contours", contours.len());
+        let mut contour_count = 0;
         for contour in contours.iter() {
             let area = imgproc::contour_area(&contour, false)?;
             if area > 100.0 {
                 let bounding_rect = imgproc::bounding_rect(&contour)?;
-                println!(
-                    "Shape detected at ({}, {}) with width: {} and height {}",
+                contour_count = contour_count + 1;
+                debug!(
+                    "[{} / {}] Shape detected at ({}, {}) with width: {} and height {}",
+                    contour_count,
+                    contours.len(),
                     bounding_rect.x,
                     bounding_rect.y,
                     bounding_rect.width,
                     bounding_rect.height,
                 );
+
+                // Draw contours on the image
+                let color = Scalar::new(255.0, 0.0, 0.0, 0.0); // Red
+                imgproc::draw_contours(
+                    &mut image_with_contours,
+                    &contours,
+                    -1,
+                    color,
+                    2,
+                    opencv::core::LINE_8,
+                    &hierarchy,
+                    2,
+                    core::Point::new(0, 0),
+                )?;
             }
         }
+
+        let mut contour_image_path = o.to_path_buf();
+        contour_image_path.set_extension("contours.png");
+        debug!("Generating contour image {}", contour_image_path.display());
+        // Save the iamge with contours
+        imwrite(contour_image_path.as_os_str().to_str().unwrap(), &image_with_contours, &core::Vector::new())?;
     }
     // DONE read .dungeondraft_map file
     // TODO read .png/.jpg/etc file
