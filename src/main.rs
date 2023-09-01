@@ -8,15 +8,18 @@ use opencv::imgproc;
 use opencv::core::{self, Scalar};
 use opencv::types::VectorOfMat;
 use serde::Deserialize;
+use std::io;
 use std::path::{PathBuf, Path};
 
 fn create_backup(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     let backup_path = get_backup_path(path);
 
     if backup_path.exists() {
+        info!("backup file '{}' already exists", backup_path.display());
         return Ok(false); // Backup already exists
     }
 
+    info!("creating backup file '{}'", backup_path.display());
     std::fs::copy(path, &backup_path)?;
     Ok(true)
 }
@@ -25,6 +28,77 @@ fn get_backup_path(origional_path: &Path) -> PathBuf {
     let mut backup_path = origional_path.to_path_buf();
     backup_path.set_extension("dungeondraft_map.bak");
     backup_path
+}
+
+fn find_shapes(image_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    debug!("Analyzing {}", image_path.display());
+    // let image = Reader::open(o).unwrap().decode().unwrap().to_rgb8();
+    let image = imread(image_path.as_os_str().to_str().unwrap(), opencv::imgcodecs::ImreadModes::IMREAD_COLOR as i32)?;
+
+    // Convert the image to grayscale
+    let mut gray_image = Mat::default();
+    imgproc::cvt_color(&image, &mut gray_image, imgproc::COLOR_BGR2GRAY, 0)?;
+
+    // Apply edge detection (e.g. using the Canny algorithm)
+    let mut edges = Mat::default();
+    imgproc::canny(&gray_image, &mut edges, 50.0, 150.0, 3, false)?;
+
+    // Find contours in the edge-detected image
+    let mut contours = VectorOfMat::new();
+    let mut hierarchy = Mat::default();
+    imgproc::find_contours_with_hierarchy(
+        &mut edges,
+        &mut contours,
+        &mut hierarchy,
+        imgproc::RETR_EXTERNAL,
+        imgproc::CHAIN_APPROX_SIMPLE,
+        core::Point::new(0, 0),
+    )?;
+
+    // Create a new image to draw contours on
+    let mut image_with_contours = Mat::default();
+    image.copy_to(&mut image_with_contours)?;
+
+    // Iterate over detected contours and print their coords and dimensions
+    info!("Detected {} contours", contours.len());
+    let mut contour_count = 0;
+    for contour in contours.iter() {
+        let area = imgproc::contour_area(&contour, false)?;
+        if area > 100.0 {
+            let bounding_rect = imgproc::bounding_rect(&contour)?;
+            contour_count = contour_count + 1;
+            debug!(
+                "[{} / {}] Shape detected at ({}, {}) with width: {} and height {}",
+                contour_count,
+                contours.len(),
+                bounding_rect.x,
+                bounding_rect.y,
+                bounding_rect.width,
+                bounding_rect.height,
+            );
+
+            // Draw contours on the image
+            let color = Scalar::new(255.0, 0.0, 0.0, 0.0); // Red
+            imgproc::draw_contours(
+                &mut image_with_contours,
+                &contours,
+                -1,
+                color,
+                2,
+                opencv::core::LINE_8,
+                &hierarchy,
+                2,
+                core::Point::new(0, 0),
+            )?;
+        }
+    }
+
+    let mut contour_image_path = image_path.to_path_buf();
+    contour_image_path.set_extension("shapes.png");
+    debug!("Generating shapes image {}", contour_image_path.display());
+    // Save the iamge with contours
+    imwrite(contour_image_path.as_os_str().to_str().unwrap(), &image_with_contours, &core::Vector::new())?;
+    Ok(contour_image_path)
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,19 +186,34 @@ Argument values are processed in the following order, using the last processed v
                 ))
                 .long_help("Choices: [error, warn, info, debug, trace]"),
         )
-        .arg(
-            Arg::new("mapfile")
-                .value_name("FILE")
-                .help("A .dungeondraft_map file")
-                .value_parser(value_parser!(PathBuf))
+        .subcommand(
+            clap::Command::new("generate")
+            .about("Generate a DungeonDraft map file from an image")
+            .arg(
+                Arg::new("image")
+                    .short('i')
+                    .long("image")
+                    .required(true)
+                    .value_name("IMAGE")
+                    .help("An image file supported by OpenCV")
+                    .value_parser(value_parser!(PathBuf))
+            )
+            .arg(
+                Arg::new("mapfile")
+                    .value_name("FILE")
+                    .help("A .dungeondraft_map file")
+                    .value_parser(value_parser!(PathBuf))
+            )
         )
-        .arg(
-            Arg::new("image")
-                .short('i')
-                .long("image")
-                .value_name("FILE")
-                .help("A .dungeondraft_map file")
-                .value_parser(value_parser!(PathBuf))
+        .subcommand(
+            clap::Command::new("shapes")
+            .about("Find what shapes will be detected in an image")
+            .arg(
+                Arg::new("image")
+                    .value_name("IMAGE")
+                    .help("An image file supported by OpenCV")
+                    .value_parser(value_parser!(PathBuf))
+            )
         )
         .get_matches();
 
@@ -154,83 +243,25 @@ Argument values are processed in the following order, using the last processed v
     debug!("testing");
     trace!("testing");
 
-    // if let Some(o) = matches.get_one::<PathBuf>("mapfile") {
-    //     debug!("Reading {}", o.display());
-    //     let file = std::fs::File::open(o)?;
-    //     let reader = io::BufReader::new(file);
-    //     let data: serde_json::Value = serde_json::from_reader(reader)?;
-    //     create_backup(o).unwrap();
-    //     debug!("{:?}", data);
-    // }
-    if let Some(o) = matches.get_one::<PathBuf>("image") {
-        debug!("Analyzing {}", o.display());
-        // let image = Reader::open(o).unwrap().decode().unwrap().to_rgb8();
-        let image = imread(o.as_os_str().to_str().unwrap(), opencv::imgcodecs::ImreadModes::IMREAD_COLOR as i32)?;
-
-        // Convert the image to grayscale
-        let mut gray_image = Mat::default();
-        imgproc::cvt_color(&image, &mut gray_image, imgproc::COLOR_BGR2GRAY, 0)?;
-
-        // Apply edge detection (e.g. using the Canny algorithm)
-        let mut edges = Mat::default();
-        imgproc::canny(&gray_image, &mut edges, 50.0, 150.0, 3, false)?;
-
-        // Find contours in the edge-detected image
-        let mut contours = VectorOfMat::new();
-        let mut hierarchy = Mat::default();
-        imgproc::find_contours_with_hierarchy(
-            &mut edges,
-            &mut contours,
-            &mut hierarchy,
-            imgproc::RETR_EXTERNAL,
-            imgproc::CHAIN_APPROX_SIMPLE,
-            core::Point::new(0, 0),
-        )?;
-
-        // Create a new image to draw contours on
-        let mut image_with_contours = Mat::default();
-        image.copy_to(&mut image_with_contours)?;
-
-        // Iterate over detected contours and print their coords and dimensions
-        info!("Detected {} contours", contours.len());
-        let mut contour_count = 0;
-        for contour in contours.iter() {
-            let area = imgproc::contour_area(&contour, false)?;
-            if area > 100.0 {
-                let bounding_rect = imgproc::bounding_rect(&contour)?;
-                contour_count = contour_count + 1;
-                debug!(
-                    "[{} / {}] Shape detected at ({}, {}) with width: {} and height {}",
-                    contour_count,
-                    contours.len(),
-                    bounding_rect.x,
-                    bounding_rect.y,
-                    bounding_rect.width,
-                    bounding_rect.height,
-                );
-
-                // Draw contours on the image
-                let color = Scalar::new(255.0, 0.0, 0.0, 0.0); // Red
-                imgproc::draw_contours(
-                    &mut image_with_contours,
-                    &contours,
-                    -1,
-                    color,
-                    2,
-                    opencv::core::LINE_8,
-                    &hierarchy,
-                    2,
-                    core::Point::new(0, 0),
-                )?;
+    match matches.subcommand() {
+        Some(("shapes", sub_matches)) => {
+            if let Some(o) = sub_matches.get_one::<PathBuf>("image") {
+                let _ = find_shapes(&o);
             }
         }
-
-        let mut contour_image_path = o.to_path_buf();
-        contour_image_path.set_extension("contours.png");
-        debug!("Generating contour image {}", contour_image_path.display());
-        // Save the iamge with contours
-        imwrite(contour_image_path.as_os_str().to_str().unwrap(), &image_with_contours, &core::Vector::new())?;
+        Some(("generate", sub_matches)) => {
+            if let Some(o) = sub_matches.get_one::<PathBuf>("mapfile") {
+                debug!("Reading {}", o.display());
+                let file = std::fs::File::open(o)?;
+                let reader = io::BufReader::new(file);
+                let data: serde_json::Value = serde_json::from_reader(reader)?;
+                create_backup(o).unwrap();
+                debug!("{:?}", data);
+            }
+        }
+        _ => {}
     }
+
     // DONE read .dungeondraft_map file
     // TODO read .png/.jpg/etc file
     // TODO insert/update/add attributes
