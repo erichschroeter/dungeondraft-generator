@@ -65,6 +65,22 @@ fn find_shapes(image_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>>
     for contour in contours.iter() {
         let area = imgproc::contour_area(&contour, false)?;
         if area > 100.0 {
+            let mut approx = Mat::default();
+            let epsilon = 0.04 * imgproc::arc_length(&contour, true)?;
+            imgproc::approx_poly_dp(&contour, &mut approx, epsilon, true)?;
+            let num_vertices = approx.total() as i32;
+            if num_vertices == 6 {
+                info!("Detected hexagon");
+            } else if num_vertices == 5 {
+                info!("Detected pentagon");
+            } else if num_vertices == 4 {
+                info!("Detected quadrilateral");
+            } else if num_vertices == 3 {
+                info!("Detected triangle");
+            } else {
+                info!("Detected polygon with {} vertices", num_vertices);
+            }
+
             let bounding_rect = imgproc::bounding_rect(&contour)?;
             contour_count = contour_count + 1;
             debug!(
@@ -78,7 +94,7 @@ fn find_shapes(image_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>>
             );
 
             // Draw contours on the image
-            let color = Scalar::new(255.0, 0.0, 0.0, 0.0); // Red
+            let color = Scalar::new(0.0, 255.0, 0.0, 0.0);
             imgproc::draw_contours(
                 &mut image_with_contours,
                 &contours,
@@ -87,7 +103,7 @@ fn find_shapes(image_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>>
                 2,
                 opencv::core::LINE_8,
                 &hierarchy,
-                2,
+                1,
                 core::Point::new(0, 0),
             )?;
         }
@@ -271,8 +287,11 @@ Argument values are processed in the following order, using the last processed v
                 debug!("{:?}", data);
             }
         }
-        Some(("generate", _sub_matches)) => {
-                // create_backup(o).unwrap();
+        Some(("generate", sub_matches)) => {
+            if let Some(o) = sub_matches.get_one::<PathBuf>("image") {
+                create_backup(o).unwrap();
+                let shapes = find_shapes(&o);
+            }
         }
         _ => {}
     }
