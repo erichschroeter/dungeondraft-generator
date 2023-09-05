@@ -11,6 +11,8 @@ use serde::Deserialize;
 use std::io;
 use std::path::{PathBuf, Path};
 
+const MAPFILE_BACKUP_EXT: &str = "dungeondraft_map.bak";
+
 fn create_backup(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     let backup_path = get_backup_path(path);
 
@@ -26,7 +28,7 @@ fn create_backup(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
 
 fn get_backup_path(origional_path: &Path) -> PathBuf {
     let mut backup_path = origional_path.to_path_buf();
-    backup_path.set_extension("dungeondraft_map.bak");
+    backup_path.set_extension(MAPFILE_BACKUP_EXT);
     backup_path
 }
 
