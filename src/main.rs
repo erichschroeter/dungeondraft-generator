@@ -11,6 +11,8 @@ use serde::Deserialize;
 use std::io;
 use std::path::{PathBuf, Path};
 
+mod dungeondraft_v1;
+
 const MAPFILE_BACKUP_EXT: &str = "dungeondraft_map.bak";
 
 fn create_backup(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
@@ -82,6 +84,12 @@ fn find_shapes(image_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>>
             } else {
                 info!("Detected polygon with {} vertices", num_vertices);
             }
+            // let points = approx.iter::<core::Point2f>()?;
+            // for point in points {
+            //     let x = point.0 as i32;
+            //     let y = point.1 as i32;
+            //     warn!("Shape coord");
+            // }
 
             let bounding_rect = imgproc::bounding_rect(&contour)?;
             contour_count = contour_count + 1;
