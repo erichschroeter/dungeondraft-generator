@@ -1,7 +1,7 @@
 use chrono::Datelike;
 use chrono::Timelike;
 
-pub const MAPFILE: &str = r#"
+pub const _MAPFILE: &str = r#"
 {
 	"header": {
 		"creation_build": "1.1.0.3 fluffy phoenix",
@@ -197,7 +197,7 @@ pub const MAPFILE: &str = r#"
 }
 "#;
 
-pub const MAPFILE_CROSSHEADSTUDIOS: &str = r#"
+pub const _MAPFILE_CROSSHEADSTUDIOS: &str = r#"
 {
 	"header": {
 		"creation_build": "1.1.0.3 fluffy phoenix",
