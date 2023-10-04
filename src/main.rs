@@ -8,7 +8,7 @@ use std::path::{PathBuf, Path};
 
 use crate::images::find_shapes;
 
-mod dungeondraft_v1;
+// mod dungeondraft_v1;
 mod images;
 
 const MAPFILE_BACKUP_EXT: &str = "dungeondraft_map.bak";
