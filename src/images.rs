@@ -36,9 +36,7 @@ impl std::fmt::Display for Shape {
     }
 }
 
-fn get_image_and_shapes(
-    image_path: &Path,
-) -> Result<(Mat, VectorOfMat, Mat), Box<dyn std::error::Error>> {
+pub fn try_find_shapes(image_path: &Path) -> Result<Vec<Shape>, Box<dyn std::error::Error>> {
     debug!(
         "Finding contours and tracing shapes in {}",
         image_path.display()
@@ -47,7 +45,10 @@ fn get_image_and_shapes(
         image_path.as_os_str().to_str().unwrap(),
         opencv::imgcodecs::ImreadModes::IMREAD_COLOR as i32,
     )?;
+    find_shapes(&image)
+}
 
+pub fn find_shapes(image: &Mat) -> Result<Vec<Shape>, Box<dyn std::error::Error>> {
     // Convert the image to grayscale
     let mut gray_image = Mat::default();
     imgproc::cvt_color(&image, &mut gray_image, imgproc::COLOR_BGR2GRAY, 0)?;
@@ -67,16 +68,6 @@ fn get_image_and_shapes(
         imgproc::CHAIN_APPROX_SIMPLE,
         core::Point::new(0, 0),
     )?;
-
-    // Create a new image to draw contours on
-    let mut image_with_contours = Mat::default();
-    image.copy_to(&mut image_with_contours)?;
-
-    Ok((image, contours, hierarchy))
-}
-
-pub fn find_shapes(image_path: &Path) -> Result<Vec<Shape>, Box<dyn std::error::Error>> {
-    let (_image, contours, _hierarchy) = get_image_and_shapes(image_path)?;
 
     // Iterate over detected contours and print their coords and dimensions
     info!("Detected {} contours", contours.len());
@@ -104,9 +95,50 @@ pub fn find_shapes(image_path: &Path) -> Result<Vec<Shape>, Box<dyn std::error::
     Ok(shapes)
 }
 
-pub fn trace_shapes(image_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    // let shapes = find_shapes(image_path);
-    let (image, contours, hierarchy) = get_image_and_shapes(image_path)?;
+pub fn try_trace_shapes(image_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    debug!(
+        "Finding contours and tracing shapes in {}",
+        image_path.display()
+    );
+    let image = imread(
+        image_path.as_os_str().to_str().unwrap(),
+        opencv::imgcodecs::ImreadModes::IMREAD_COLOR as i32,
+    )?;
+
+    let traced_image = trace_shapes(&image)?;
+
+    let mut contour_image_path = image_path.to_path_buf();
+    contour_image_path.set_extension("shapes.png");
+    debug!("Generating shapes image {}", contour_image_path.display());
+    // Save the iamge with contours
+    imwrite(
+        contour_image_path.as_os_str().to_str().unwrap(),
+        &traced_image,
+        &core::Vector::new(),
+    )?;
+    Ok(contour_image_path)
+}
+
+pub fn trace_shapes(image: &Mat) -> Result<Mat, Box<dyn std::error::Error>> {
+    // Convert the image to grayscale
+    let mut gray_image = Mat::default();
+    imgproc::cvt_color(&image, &mut gray_image, imgproc::COLOR_BGR2GRAY, 0)?;
+
+    // Apply edge detection (e.g. using the Canny algorithm)
+    let mut edges = Mat::default();
+    imgproc::canny(&gray_image, &mut edges, 50.0, 150.0, 3, false)?;
+
+    // Find contours in the edge-detected image
+    let mut contours = VectorOfMat::new();
+    let mut hierarchy = Mat::default();
+    imgproc::find_contours_with_hierarchy(
+        &mut edges,
+        &mut contours,
+        &mut hierarchy,
+        imgproc::RETR_EXTERNAL,
+        imgproc::CHAIN_APPROX_SIMPLE,
+        core::Point::new(0, 0),
+    )?;
 
     // Create a new image to draw contours on
     let mut traced_image = Mat::default();
@@ -148,15 +180,5 @@ pub fn trace_shapes(image_path: &Path) -> Result<PathBuf, Box<dyn std::error::Er
             )?;
         }
     }
-
-    let mut contour_image_path = image_path.to_path_buf();
-    contour_image_path.set_extension("shapes.png");
-    debug!("Generating shapes image {}", contour_image_path.display());
-    // Save the iamge with contours
-    imwrite(
-        contour_image_path.as_os_str().to_str().unwrap(),
-        &traced_image,
-        &core::Vector::new(),
-    )?;
-    Ok(contour_image_path)
+    Ok(traced_image)
 }

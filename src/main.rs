@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::images::{find_shapes, trace_shapes};
+use crate::images::{try_find_shapes, try_trace_shapes};
 
 // mod dungeondraft_v1;
 mod images;
@@ -150,7 +150,7 @@ Argument values are processed in the following order, using the last processed v
                 ),
         )
         .subcommand(
-            clap::Command::new("shapes")
+            clap::Command::new("preview")
                 .about("Find what shapes will be detected in an image")
                 .arg(
                     Arg::new("image")
@@ -188,10 +188,10 @@ Argument values are processed in the following order, using the last processed v
     trace!("testing");
 
     match matches.subcommand() {
-        Some(("shapes", sub_matches)) => {
+        Some(("preview", sub_matches)) => {
             if let Some(o) = sub_matches.get_one::<PathBuf>("image") {
                 // let _ = find_shapes(&o);
-                let _ = trace_shapes(&o);
+                let _ = try_trace_shapes(&o);
             }
         }
         Some(("info", sub_matches)) => {
@@ -206,7 +206,7 @@ Argument values are processed in the following order, using the last processed v
         Some(("generate", sub_matches)) => {
             if let Some(o) = sub_matches.get_one::<PathBuf>("image") {
                 create_backup(o).unwrap();
-                let _shapes = find_shapes(&o);
+                let _shapes = try_find_shapes(&o);
             }
         }
         _ => {}
