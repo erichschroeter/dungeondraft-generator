@@ -4,9 +4,9 @@ use directories::UserDirs;
 use log::{debug, error, info, trace, warn, LevelFilter};
 use serde::Deserialize;
 use std::io;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
-use crate::images::find_shapes;
+use crate::images::{find_shapes, trace_shapes};
 
 // mod dungeondraft_v1;
 mod images;
@@ -119,45 +119,45 @@ Argument values are processed in the following order, using the last processed v
         )
         .subcommand(
             clap::Command::new("info")
-            .about("Show DungeonDraft map file info")
-            .arg(
-                Arg::new("mapfile")
-                    .required(true)
-                    .value_name("FILE")
-                    .help("A .dungeondraft_map file")
-                    .value_parser(value_parser!(PathBuf))
-            )
+                .about("Show DungeonDraft map file info")
+                .arg(
+                    Arg::new("mapfile")
+                        .required(true)
+                        .value_name("FILE")
+                        .help("A .dungeondraft_map file")
+                        .value_parser(value_parser!(PathBuf)),
+                ),
         )
         .subcommand(
             clap::Command::new("generate")
-            .about("Generate a DungeonDraft map file from an image")
-            .arg(
-                Arg::new("image")
-                    .short('i')
-                    .long("image")
-                    .required(true)
-                    .value_name("IMAGE")
-                    .help("An image file supported by OpenCV")
-                    .value_parser(value_parser!(PathBuf))
-            )
-            .arg(
-                Arg::new("mapfile")
-                    .short('o')
-                    .long("output")
-                    .value_name("FILE")
-                    .help("A .dungeondraft_map file")
-                    .value_parser(value_parser!(PathBuf))
-            )
+                .about("Generate a DungeonDraft map file from an image")
+                .arg(
+                    Arg::new("image")
+                        .short('i')
+                        .long("image")
+                        .required(true)
+                        .value_name("IMAGE")
+                        .help("An image file supported by OpenCV")
+                        .value_parser(value_parser!(PathBuf)),
+                )
+                .arg(
+                    Arg::new("mapfile")
+                        .short('o')
+                        .long("output")
+                        .value_name("FILE")
+                        .help("A .dungeondraft_map file")
+                        .value_parser(value_parser!(PathBuf)),
+                ),
         )
         .subcommand(
             clap::Command::new("shapes")
-            .about("Find what shapes will be detected in an image")
-            .arg(
-                Arg::new("image")
-                    .value_name("IMAGE")
-                    .help("An image file supported by OpenCV")
-                    .value_parser(value_parser!(PathBuf))
-            )
+                .about("Find what shapes will be detected in an image")
+                .arg(
+                    Arg::new("image")
+                        .value_name("IMAGE")
+                        .help("An image file supported by OpenCV")
+                        .value_parser(value_parser!(PathBuf)),
+                ),
         )
         .get_matches();
 
@@ -190,7 +190,8 @@ Argument values are processed in the following order, using the last processed v
     match matches.subcommand() {
         Some(("shapes", sub_matches)) => {
             if let Some(o) = sub_matches.get_one::<PathBuf>("image") {
-                let _ = find_shapes(&o);
+                // let _ = find_shapes(&o);
+                let _ = trace_shapes(&o);
             }
         }
         Some(("info", sub_matches)) => {
